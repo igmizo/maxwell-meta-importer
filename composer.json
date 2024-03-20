@@ -1,0 +1,13 @@
+{
+    "name": "igmizo/gmz-post-importer",
+    "authors": [
+        {
+            "name": "Ivars Gmizo",
+            "email": "gmz@gmz.lv"
+        }
+    ],
+    "require": {
+        "guzzlehttp/guzzle": "^7.0",
+        "deliciousbrains/wp-background-processing": "^1.1"
+    }
+}

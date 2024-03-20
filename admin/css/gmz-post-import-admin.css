@@ -1,0 +1,101 @@
+/**
+ * All of the CSS for your admin-specific functionality should be
+ * included in this file.
+ */
+
+.step1 {
+    font-size: 1rem;
+}
+
+.wrap h1 {
+    margin-bottom: 24px;
+}
+
+label {
+    display: inline-block;
+    width: 200px;
+}
+
+.row {
+    margin-bottom: 16px;
+}
+
+#queue_table {
+    margin-top: 2em;
+}
+
+#queue_table .file-name-column {
+    width: 30%;
+}
+
+@media screen and (max-width: 782px) {
+    #queue_table .file-name-column {
+        width: auto;
+    }
+}
+
+#queue_table_loader:not(.hidden) {
+    display: flex;
+    align-items: center;
+}
+
+#queue_table_loader .loader,
+#queue_table_cleanup .loader {
+    width: 30px;
+    height: 30px;
+    border: 5px solid #2271b1;
+    border-bottom-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+    margin-right: 1em;
+}
+
+#queue_table_cleanup .loader.small {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #2271b1;
+    border-bottom-color: transparent;
+}
+
+#queue_table_cleanup.loading {
+    display: inline-flex;
+    align-items: center;
+}
+
+@keyframes rotation {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+#queue_table_load_error {
+    margin-top: 12px;
+    color: #d63638;
+}
+
+#error_table_wrapper {
+    display: none;
+}
+
+#error_table_wrapper.visible {
+    display: table;
+}
+
+.actions-cell {
+    display: flex;
+    gap: 10px;
+}
+
+.gmz-pi-log-output-wrapper {
+    padding: 10px 0 10px 14px;
+}
+
+#import_error_message #qm-fatal {
+    position: static !important;
+}
