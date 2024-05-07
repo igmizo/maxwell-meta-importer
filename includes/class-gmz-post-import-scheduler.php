@@ -80,7 +80,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
     $current_db_version = get_site_option('gmz_post_import_db_version', 1);
 
-    if ($current_db_version != MaAXWELL_POST_IMPORT_DB_VERSION) {
+    if ($current_db_version != MAXWELL_POST_IMPORT_DB_VERSION) {
       $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
       $charsetCollate = $wpdb->get_charset_collate();
       $sql = "CREATE TABLE $table_name (
@@ -92,7 +92,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
       require_once ABSPATH . 'wp-admin/includes/upgrade.php';
       dbDelta( $sql );
-      update_option('gmz_post_import_db_version', MaAXWELL_POST_IMPORT_DB_VERSION);
+      update_option('gmz_post_import_db_version', MAXWELL_POST_IMPORT_DB_VERSION);
     }
 
     if ($current_db_version < 3) {
