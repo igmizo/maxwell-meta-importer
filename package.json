@@ -1,0 +1,5 @@
+{
+  "name": "maxwell-meta-importer",
+  "description": "Allows importing posts and their custom fields from CSV.",
+  "version": "1.4.3"
+}
