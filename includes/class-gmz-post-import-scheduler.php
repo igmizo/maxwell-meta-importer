@@ -8,7 +8,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $importer = new Maxwell_CSV_Importer($file, $post_type, $taxonomy);
     $rows = $importer->get_rows();
     $task_items = array_chunk($rows, $importer->get_batch_size());
@@ -54,7 +54,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $schedules = $this->get_schedules();
     $completed_queues = [];
 
@@ -78,10 +78,10 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $current_db_version = get_site_option('gmz_post_import_db_version', 1);
+    $current_db_version = get_site_option('maxwell_meta_import_db_version', 1);
 
     if ($current_db_version != MAXWELL_POST_IMPORT_DB_VERSION) {
-      $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+      $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
       $charsetCollate = $wpdb->get_charset_collate();
       $sql = "CREATE TABLE $table_name (
           id mediumint(9) NOT NULL AUTO_INCREMENT,
@@ -92,7 +92,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
       require_once ABSPATH . 'wp-admin/includes/upgrade.php';
       dbDelta( $sql );
-      update_option('gmz_post_import_db_version', MAXWELL_POST_IMPORT_DB_VERSION);
+      update_option('maxwell_meta_import_db_version', MAXWELL_POST_IMPORT_DB_VERSION);
     }
 
     if ($current_db_version < 3) {
@@ -156,7 +156,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $schedules = $wpdb->get_results("SELECT * FROM $table_name");
 
     foreach ($schedules as $schedule) {
@@ -227,7 +227,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
     global $wpdb;
 
     $schedule = get_option($this->action, []);
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $schedule_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
 
     if ($schedule_count > 0) {
@@ -251,7 +251,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $schedule = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE name = %s", $name));
 
     if ($schedule) {
@@ -265,7 +265,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
 
     $wpdb->update($table_name, ['details' => maybe_serialize($schedule->details)], ['id' => $schedule->id]);
   }
@@ -274,7 +274,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $batch = $this->get_batch();
 
     if (!empty($batch) && $batch->key == $key) {
@@ -309,7 +309,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     global $wpdb;
 
-    $table_name = $wpdb->prefix . 'gmz_post_import_schedule';
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $key = $schedule->name;
 
     $this->cancel_schedule($key);
