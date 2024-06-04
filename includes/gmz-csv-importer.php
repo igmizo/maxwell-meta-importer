@@ -398,6 +398,9 @@ class Maxwell_CSV_Importer
             case "offer":
                 $processedValue = $this->processOffer($value);
                 break;
+            case "add_to_cart_product_image":
+                $processedValue = $this->processMedia($value);
+                break;
             default:
                 $processedValue = $value;
         }
@@ -506,6 +509,81 @@ class Maxwell_CSV_Importer
 
         return $message;
     }
+
+    private function processMedia($url)
+    {
+        $attachmentId = $this->getWPAttachmentID($url);
+
+        if ($attachmentId) {
+            return $attachmentId;
+        }
+
+        return $this->addMediaFromURL($url);
+    }
+
+    private function getWPAttachmentID($url)
+    {
+        $id = null;
+        $fileName = basename($url);
+
+        $queryArgs = [
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'fields' => 'ids',
+            'meta_query' => [[
+                'value'   => $fileName,
+                'compare' => 'LIKE',
+                'key'     => '_wp_attachment_metadata'
+            ]]
+        ];
+
+        $query = new WP_Query($queryArgs);
+
+        if ($query->have_posts()) {
+            foreach ($query->posts as $postId) {
+                $meta = wp_get_attachment_metadata($postId);
+                $originalFile = basename($meta['file']);
+                $croppedImageFiles = wp_list_pluck($meta['sizes'], 'file');
+
+                if ($originalFile == $fileName || in_array($fileName, $croppedImageFiles)) {
+                    $id = $postId;
+                    break;
+                }
+            }
+        }
+
+        return $id;
+    }
+
+    private function addMediaFromURL($url)
+    {
+        $uploadsDir = wp_upload_dir();
+        $image = file_get_contents($url);
+        $fileName = basename($url);
+        $filePath = "{$uploadsDir['path']}/$fileName";
+        $file = fopen($filePath, 'w');
+
+        fwrite($file, $image);
+        fclose($file);
+
+        $fileType = wp_check_filetype($fileName, null);
+        $attachment = [
+            'guid' => $filePath,
+            'post_mime_type' => $fileType['type'],
+            'post_title' => preg_replace('/\.[^.]+$/', '', $fileName),
+            'post_content' => '',
+            'post_status' => 'inherit'
+        ];
+        $attachmentId = wp_insert_attachment($attachment, $filePath);
+
+        require_once(ABSPATH . 'wp-admin/includes/image.php');
+
+        $attachmentData = wp_generate_attachment_metadata($attachmentId, $filePath);
+
+        wp_update_attachment_metadata($attachmentId, $attachmentData);
+
+        return $attachmentId;
+    }
 }
 
 function maxwell_remove_background_color_from_amazon_image($post_id) {
@@ -563,7 +641,14 @@ function maxwell_checkbox_meta_box_callback( $post ) {
 function maxwell_remove_background_button() {
     global $post_id;
     if(has_post_thumbnail($post_id)) return;
-    $amazon_data = current(get_post_meta($post_id, '_cegg_data_Amazon', true));
+
+    $amazon_field_value = get_post_meta($post_id, '_cegg_data_Amazon', true);
+    $amazon_data = [];
+
+    if ($amazon_field_value) {
+      $amazon_data = current($amazon_field_value);
+    }
+
     if(array_key_exists('img', $amazon_data)){
         add_meta_box(
             'gmz-checkbox-meta-box',
