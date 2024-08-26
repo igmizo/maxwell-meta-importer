@@ -10,7 +10,7 @@
  * Plugin Name:       Maxwell meta importer
  * Plugin URI:        https://camerareviews.com
  * Description:       Allows importing posts and their custom fields from CSV
- * Version:           1.4.4
+ * Version:           1.4.5
  * Author:            Expert Photography
  * Author URI:        https://camerareviews.com/
  * License:           GPL-2.0+
@@ -31,7 +31,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Start at version 1.0.0 and use SemVer - https://semver.org
  * Rename this for your plugin and update it as you release new versions.
  */
-define( 'MAXWELL_POST_IMPORT_VERSION', '1.4.4' );
+define( 'MAXWELL_POST_IMPORT_VERSION', '1.4.5' );
 define( 'MAXWELL_POST_IMPORT_DB_VERSION', 3 );
 
 /**

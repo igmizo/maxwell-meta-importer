@@ -336,6 +336,10 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     $total_progress = $schedule->details['created_count'] + $schedule->details['failed_count'] + $schedule->details['updated_count'];
 
+    if ($schedule->details['total'] == 0) {
+      return 0;
+    }
+
     return $total_progress / $schedule->details['total'] * 100;
   }
 }
