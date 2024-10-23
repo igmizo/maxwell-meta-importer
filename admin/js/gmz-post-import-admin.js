@@ -1,6 +1,45 @@
 (function( $ ) {
 	let uploadInProgress = false;
 
+  function showImportError(text) {
+    const errorMessage = document.getElementById('import_error_message');
+
+    if (errorMessage) {
+      const errorMessageText = document.getElementById('import_error_message_text');
+
+      if (errorMessageText) {
+        errorMessageText.innerHTML = `Failed to start the import process. Error: ${text}`;
+        errorMessage.classList.remove('hidden');
+      }
+    }
+  }
+
+  async function makeRetriableRequest(body, attempt = 1) {
+    try {
+      const response = await fetch(ajaxurl, {
+        method: 'POST',
+        body,
+        signal: AbortSignal.timeout(60000)
+      });
+
+      const jsonResponse = await response.json();
+
+      return jsonResponse
+    } catch (error) {
+      if (error.name == 'TimeoutError') {
+        if (attempt < 5) {
+          return makeRetriableRequest(body, attempt + 1);
+        }
+
+        showImportError('the request timed out 4 times.');
+      } else {
+        showImportError(error.message);
+      }
+    }
+
+    return [];
+  }
+
 	const calculateProgressPercentage = function (queue) {
 		let percentage = queue.progress.toFixed(2);
 
@@ -243,7 +282,7 @@
 	};
 
 	let currentRow = 0;
-	const handle_submit = function(file) {
+	const handle_submit = async function(file) {
 		const formData = new FormData();
 		const button = document.querySelector('#csv_upload_form button[type="submit"]');
 
@@ -259,48 +298,21 @@
 
 		uploadInProgress = true;
 
-		jQuery.ajax({
-			type: "POST",
-			url: ajaxurl,
-			success: updateTables,
-			error: function (req, status) {
-				const errorMessage = document.getElementById('import_error_message');
+    const response = await makeRetriableRequest(formData);
 
-				if (errorMessage) {
-					const errorMessageText = document.getElementById('import_error_message_text');
+    if (button) {
+      button.removeAttribute('disabled');
+    }
 
-					if (errorMessageText) {
-						let errorText = req.responseText;
+    uploadInProgress = false;
 
-						if (status == 'timeout') {
-							errorText = 'the request timed out. Please try to upload the file again!';
-						}
-
-						errorMessageText.innerHTML = `Failed to start the import process. Error: ${errorText}`;
-						errorMessage.classList.remove('hidden');
-					}
-				}
-			},
-			complete: function () {
-				if (button) {
-					button.removeAttribute('disabled');
-				}
-
-				uploadInProgress = false;
-			},
-			async: true,
-			data: formData,
-			cache: false,
-			contentType: false,
-			processData: false,
-			timeout: 30000
-		});
+    updateProgress(response);
 	}
 
 	const updateProgress = function(data) {
 		const $status = $(".status");
 		const $progress = $("#progress");
-		console.log(data);
+
 		if(data.finished) {
 			$status.html("Finished");
 			$progress.val(data.total);
@@ -309,8 +321,6 @@
 		$progress.attr('max', data.total);
 		$progress.val(data.current);
 		$status.html("Importing " + data.current + " of " + data.total);
-
-		console.log(data);
 	}
 
 	const clearCompletedQueues = function (event) {
