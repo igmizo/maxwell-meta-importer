@@ -11,11 +11,11 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
     $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
     $importer = new Maxwell_CSV_Importer($file, $post_type, $taxonomy);
     $rows = $importer->get_rows();
-    $task_items = array_chunk($rows, $importer->get_batch_size());
     $queue_key = $this->generate_key();
+    $task_item_count = ceil(count($rows) / $importer->get_batch_size());
 
-    foreach ($task_items as $index => $item) {
-      $this->push_to_queue(['key' => $queue_key, 'batch_index' => $index]);
+    for ($i = 0; $i < $task_item_count; $i++) {
+      $this->push_to_queue(['key' => $queue_key, 'batch_index' => $i]);
     }
 
     $schedule = [
