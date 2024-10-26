@@ -82,16 +82,24 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
     if ($current_db_version != MAXWELL_POST_IMPORT_DB_VERSION) {
       $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
+      $options_table_name = $wpdb->prefix . 'maxwell_meta_import_options';
       $charsetCollate = $wpdb->get_charset_collate();
-      $sql = "CREATE TABLE $table_name (
+      $schedule_sql = "CREATE TABLE $table_name (
           id mediumint(9) NOT NULL AUTO_INCREMENT,
           name varchar(255) NOT NULL,
           details longtext NOT NULL,
-          PRIMARY KEY  (id)
+          PRIMARY KEY (id)
+      ) $charsetCollate;";
+      $options_sql = "CREATE TABLE $options_table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        name varchar(255) NOT NULL,
+        value longtext NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE (name)
       ) $charsetCollate;";
 
       require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-      dbDelta( $sql );
+      dbDelta([$schedule_sql, $options_sql]);
       update_option('maxwell_meta_import_db_version', MAXWELL_POST_IMPORT_DB_VERSION);
     }
 
@@ -102,13 +110,81 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
   public function save($key = null)
   {
-    if (is_null($key)) return parent::save();
-
     if (!empty($this->data)) {
-      update_site_option($key, $this->data);
+      $this->update_option($key, $this->data);
     }
 
     return $this;
+  }
+
+  public function update($name, $data)
+  {
+    if (!empty($data)) {
+      $this->update_option($name, $data);
+    }
+
+    return $this;
+  }
+
+  public function delete($name)
+  {
+    $this->delete_option($name);
+
+    return $this;
+  }
+
+  public function delete_all()
+  {
+    $batches = $this->get_batches();
+
+    foreach ($batches as $batch) {
+      $this->delete($batch->key);
+    }
+
+    $this->delete_option($this->get_status_key());
+    $this->cancelled();
+  }
+
+  public function cancel()
+  {
+    $this->update_option($this->get_status_key(), self::STATUS_CANCELLED);
+    $this->dispatch();
+  }
+
+  public function is_cancelled()
+  {
+    $status = $this->get_option($this->get_status_key());
+
+    if ($status && absint($status->value) === self::STATUS_CANCELLED) {
+      return true;
+    }
+
+    return false;
+  }
+
+  public function pause()
+  {
+    $this->update_option($this->get_status_key(), self::STATUS_PAUSED);
+  }
+
+  public function is_paused()
+  {
+    $status = $this->get_option($this->get_status_key());
+
+    if ($status && absint($status->value) === self::STATUS_PAUSED) {
+      return true;
+    }
+
+    return false;
+  }
+
+  public function resume()
+  {
+    $this->delete_option($this->get_status_key());
+
+    $this->schedule_event();
+    $this->dispatch();
+    $this->resumed();
   }
 
   public function cancel_file()
@@ -166,6 +242,44 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
     return $schedules;
   }
 
+  public function is_processing()
+  {
+    $option = $this->get_option($this->identifier . '_process_lock');
+
+    return !is_null($option);
+  }
+
+  public function get_batches($limit = 0)
+  {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_options';
+    $name = $wpdb->esc_like( $this->identifier . '_batch_' ) . '%';
+    $sql = "SELECT * FROM $table_name WHERE name LIKE %s ORDER BY id ASC LIMIT %d";
+
+    if (empty($limit) || !is_int($limit)) {
+      $limit = 0;
+    }
+
+    $items = $wpdb->get_results($wpdb->prepare($sql, [$name, $limit]));
+    $batches = [];
+
+    if (!empty($items)) {
+      $batches = array_map(
+        function ($item) {
+          $batch = new stdClass();
+          $batch->key  = $item->name;
+          $batch->data = maybe_unserialize($item->value);
+
+          return $batch;
+        },
+        $items
+      );
+    }
+
+    return $batches;
+  }
+
   protected function task($item)
   {
     $schedule = $this->get_schedule_by_name($item['key']);
@@ -187,16 +301,17 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
         $schedule->details['processed_batches'][] = $item['batch_index'];
       }
-    }
 
-    $this->update_schedule($schedule);
+      $this->update_schedule($schedule);
+    }
 
     return false;
   }
 
   protected function complete()
   {
-    parent::complete();
+    $this->delete_option($this->get_status_key());
+    $this->clear_scheduled_event();
 
     $schedules = $this->get_schedules();
     $active_batch = $this->get_batch();
@@ -220,6 +335,25 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
         }
       }
     }
+
+    $this->completed();
+  }
+
+  protected function lock_process()
+  {
+    $this->start_time = time();
+
+    $lock_duration = ( property_exists( $this, 'queue_lock_time' ) ) ? $this->queue_lock_time : 60;
+    $lock_duration = apply_filters( $this->identifier . '_queue_lock_time', $lock_duration );
+
+    $this->update_option($this->identifier . '_process_lock', $lock_duration);
+  }
+
+  protected function unlock_process()
+  {
+    $this->delete_option( $this->identifier . '_process_lock' );
+
+    return $this;
   }
 
   private function migrate_schedule_data()
@@ -341,6 +475,39 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
     }
 
     return $total_progress / $schedule->details['total'] * 100;
+  }
+
+  private function get_option($name)
+  {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_options';
+    $option = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE name = %s", $name));
+
+    if ($option) {
+      $option->value = maybe_unserialize($option->value);
+    }
+
+    return $option;
+  }
+
+  private function update_option($key, $value)
+  {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_options';
+    $serialized_value = maybe_serialize($value);
+
+    $wpdb->replace($table_name, ['name' => $key, 'value' => $serialized_value]);
+  }
+
+  private function delete_option($key)
+  {
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'maxwell_meta_import_options';
+
+    $wpdb->delete($table_name, ['name' => $key]);
   }
 }
 

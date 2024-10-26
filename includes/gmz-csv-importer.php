@@ -300,7 +300,7 @@ class Maxwell_CSV_Importer
                 }
             }
 
-            if($data['featured_image']) {
+            if(isset($data['featured_image'])) {
                 $attachment_id = attachment_url_to_postid($data['featured_image']);
                 if($attachment_id) {
                     set_post_thumbnail($post_id, $attachment_id);

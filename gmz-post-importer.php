@@ -32,7 +32,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Rename this for your plugin and update it as you release new versions.
  */
 define( 'MAXWELL_POST_IMPORT_VERSION', '1.5.0' );
-define( 'MAXWELL_POST_IMPORT_DB_VERSION', 3 );
+define( 'MAXWELL_POST_IMPORT_DB_VERSION', 4 );
 
 /**
  * The code that runs during plugin activation.
