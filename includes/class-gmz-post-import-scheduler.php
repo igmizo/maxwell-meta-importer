@@ -255,13 +255,19 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
     $table_name = $wpdb->prefix . 'maxwell_meta_import_options';
     $name = $wpdb->esc_like( $this->identifier . '_batch_' ) . '%';
-    $sql = "SELECT * FROM $table_name WHERE name LIKE %s ORDER BY id ASC LIMIT %d";
+    $sql = "SELECT * FROM $table_name WHERE name LIKE %s ORDER BY id ASC";
+    $arguments = [$name];
 
     if (empty($limit) || !is_int($limit)) {
       $limit = 0;
     }
 
-    $items = $wpdb->get_results($wpdb->prepare($sql, [$name, $limit]));
+    if ($limit > 0) {
+      $sql .= ' LIMIT %d';
+      $arguments[] = $limit;
+    }
+
+    $items = $wpdb->get_results($wpdb->prepare($sql, $arguments));
     $batches = [];
 
     if (!empty($items)) {
@@ -397,6 +403,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
     }
 
     $wpdb->delete($table_name, ['name' => $key]);
+    $this->unlock_process();
   }
 
   private function refresh_processed_batches($schedule)

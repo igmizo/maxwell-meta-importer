@@ -281,7 +281,6 @@
 		});
 	};
 
-	let currentRow = 0;
 	const handle_submit = async function(file) {
 		const formData = new FormData();
 		const button = document.querySelector('#csv_upload_form button[type="submit"]');
