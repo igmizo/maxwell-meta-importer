@@ -286,6 +286,39 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
     return $batches;
   }
 
+  public function maybe_handle()
+  {
+    session_write_close();
+
+    if ($this->is_processing()) {
+      return $this->maybe_wp_die();
+    }
+
+    if ($this->is_cancelled()) {
+      $this->clear_scheduled_event();
+      $this->delete_all();
+
+      return $this->maybe_wp_die();
+    }
+
+    if ($this->is_paused()) {
+      $this->clear_scheduled_event();
+      $this->paused();
+
+      return $this->maybe_wp_die();
+    }
+
+    if ($this->is_queue_empty()) {
+      return $this->maybe_wp_die();
+    }
+
+    check_ajax_referer($this->identifier, 'nonce');
+
+    $this->handle();
+
+    return [];
+  }
+
   protected function task($item)
   {
     $schedule = $this->get_schedule_by_name($item['key']);
