@@ -14,27 +14,18 @@
     }
   }
 
-  async function makeRetriableRequest(body, attempt = 1) {
+  async function makeRequest(body, attempt = 1) {
     try {
       const response = await fetch(ajaxurl, {
         method: 'POST',
-        body,
-        signal: AbortSignal.timeout(240000)
+        body
       });
 
       const jsonResponse = await response.json();
 
       return jsonResponse
     } catch (error) {
-      if (error.name == 'TimeoutError') {
-        if (attempt < 5) {
-          return makeRetriableRequest(body, attempt + 1);
-        }
-
-        showImportError('the request timed out 4 times.');
-      } else {
-        showImportError(error.message);
-      }
+      showImportError(error.message);
     }
 
     return [];
@@ -297,7 +288,7 @@
 
 		uploadInProgress = true;
 
-    const response = await makeRetriableRequest(formData);
+    const response = await makeRequest(formData);
 
     if (button) {
       button.removeAttribute('disabled');
