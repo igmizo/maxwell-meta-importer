@@ -312,30 +312,6 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
   {
     $this->delete_option($this->get_status_key());
     $this->clear_scheduled_event();
-
-    $schedules = $this->get_schedules();
-    $active_batch = $this->get_batch();
-
-    if (empty($active_batch)) {
-      $active_batch = new \stdClass();
-
-      $active_batch->key = null;
-    }
-
-    foreach ($schedules as $schedule) {
-      $starting_point = 1698665742;
-
-      if ($schedule->name != $active_batch->key && $schedule->details['created_at'] > $starting_point) {
-        $progress = $this->calculate_progress_percentage($schedule);
-
-        if ($progress < 100 && array_key_exists('results', $schedule->details)) {
-          $this->restart_schedule($schedule);
-
-          error_log("MXPI: {$schedule->name} has been restarted.");
-        }
-      }
-    }
-
     $this->completed();
   }
 
@@ -409,12 +385,15 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
     global $wpdb;
 
     $table_name = $wpdb->prefix . 'maxwell_meta_import_schedule';
-    $batch = $this->get_batch();
+    $batches = $this->get_batches();
 
-    if (!empty($batch) && $batch->key == $key) {
-      $this->complete();
-    } else {
-      $this->delete($key);
+    foreach ($batches as $batch) {
+      if ($batch->key == $key) {
+        $this->complete();
+        $this->delete($key);
+
+        break;
+      }
     }
 
     $wpdb->delete($table_name, ['name' => $key]);
