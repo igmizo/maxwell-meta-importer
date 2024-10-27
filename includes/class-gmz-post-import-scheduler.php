@@ -1,5 +1,7 @@
 <?php
 
+use GuzzleHttp\Client;
+
 class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 {
   protected $action = 'maxwell_post_import_scheduler';
@@ -288,6 +290,7 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
 
   public function maybe_handle()
   {
+    error_log('maybe_handle');
     session_write_close();
 
     if ($this->is_processing()) {
@@ -312,11 +315,24 @@ class Maxwell_Post_Import_Scheduler extends WP_Background_Process
       return $this->maybe_wp_die();
     }
 
-    check_ajax_referer($this->identifier, 'nonce');
-
     $this->handle();
 
     return [];
+  }
+
+  public function dispatch()
+  {
+    if ($this->is_processing()) {
+      return false;
+    }
+
+    $url = add_query_arg( $this->get_query_args(), $this->get_query_url() );
+    $client = new Client();
+    $response = $client->request('POST', $url);
+
+    $this->schedule_event();
+
+    return $response->getStatusCode() == 200;
   }
 
   protected function task($item)

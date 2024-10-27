@@ -19,7 +19,7 @@
       const response = await fetch(ajaxurl, {
         method: 'POST',
         body,
-        signal: AbortSignal.timeout(60000)
+        signal: AbortSignal.timeout(240000)
       });
 
       const jsonResponse = await response.json();
