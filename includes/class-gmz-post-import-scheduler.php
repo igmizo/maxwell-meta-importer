@@ -293,6 +293,7 @@ class Maxwell_Post_Import_Scheduler
 
   protected function complete()
   {
+    error_log('complete');
     $this->remove_scheduled_event();
   }
 
@@ -372,7 +373,7 @@ class Maxwell_Post_Import_Scheduler
   {
     if (as_next_scheduled_action('maxwell_meta_importer_action') === false) {
       error_log('Event does not exist');
-      as_schedule_cron_action(time(), "* * * * *", 'maxwell_meta_importer_action');
+      as_schedule_recurring_action(time(), MINUTE_IN_SECONDS, 'maxwell_meta_importer_action');
     }
   }
 
@@ -446,7 +447,7 @@ class Maxwell_Post_Import_Scheduler
     foreach ($batches as $batch) {
       if ($batch->key == $key) {
         $this->complete();
-        $this->delete($key);
+        $this->delete_option($key);
 
         break;
       }
