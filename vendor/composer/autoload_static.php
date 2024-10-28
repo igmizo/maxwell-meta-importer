@@ -52,8 +52,6 @@ class ComposerStaticInitd7bfb3ad22e8b29737ec558583ac63fe
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
-        'WP_Async_Request' => __DIR__ . '/..' . '/deliciousbrains/wp-background-processing/classes/wp-async-request.php',
-        'WP_Background_Process' => __DIR__ . '/..' . '/deliciousbrains/wp-background-processing/classes/wp-background-process.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

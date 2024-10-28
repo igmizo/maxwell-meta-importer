@@ -17,21 +17,8 @@ class Maxwell_Post_Import_Scheduler
 
   public function __construct() {
     $this->identifier = $this->prefix . '_' . $this->action;
-    $this->cron_hook_identifier     = $this->identifier . '_cron';
-    $this->cron_interval_identifier = $this->identifier . '_cron_interval';
 
-    add_action('wp_ajax_' . $this->identifier, [$this, 'maybe_handle']);
-    add_action('wp_ajax_nopriv_' . $this->identifier, [$this, 'maybe_handle']);
-    // add_action($this->cron_hook_identifier, [$this, 'handle_cron_healthcheck']);
-    // add_filter('cron_schedules', [$this, 'schedule_cron_healthcheck']);
     add_action('maxwell_meta_importer_action', [$this, 'handle']);
-  }
-
-  public function data($data)
-  {
-    $this->data = $data;
-
-    return $this;
   }
 
   public function schedule_file($file, $post_type, $taxonomy)
@@ -163,80 +150,13 @@ class Maxwell_Post_Import_Scheduler
     return $this;
   }
 
-  public function delete($name)
-  {
-    $this->delete_option($name);
-
-    return $this;
-  }
-
   public function delete_all()
   {
     $batches = $this->get_batches();
 
     foreach ($batches as $batch) {
-      $this->delete($batch->key);
+      $this->delete_option($batch->key);
     }
-
-    $this->delete_option($this->get_status_key());
-    $this->cancelled();
-  }
-
-  public function cancel()
-  {
-    $this->update_option($this->get_status_key(), self::STATUS_CANCELLED);
-    $this->dispatch();
-  }
-
-  public function is_cancelled()
-  {
-    $status = $this->get_option($this->get_status_key());
-
-    if ($status && absint($status->value) === self::STATUS_CANCELLED) {
-      return true;
-    }
-
-    return false;
-  }
-
-  public function pause()
-  {
-    $this->update_option($this->get_status_key(), self::STATUS_PAUSED);
-  }
-
-  public function is_paused()
-  {
-    $status = $this->get_option($this->get_status_key());
-
-    if ($status && absint($status->value) === self::STATUS_PAUSED) {
-      return true;
-    }
-
-    return false;
-  }
-
-  public function is_queued()
-  {
-    return !$this->is_queue_empty();
-  }
-
-  public function is_active()
-  {
-    return $this->is_queued() || $this->is_processing() || $this->is_paused() || $this->is_cancelled();
-  }
-
-  protected function paused()
-  {
-    do_action($this->identifier . '_paused');
-  }
-
-  public function resume()
-  {
-    $this->delete_option($this->get_status_key());
-
-    $this->schedule_event();
-    $this->dispatch();
-    $this->resumed();
   }
 
   public function cancel_file()
@@ -338,124 +258,9 @@ class Maxwell_Post_Import_Scheduler
     return $batches;
   }
 
-  public function maybe_handle()
-  {
-    session_write_close();
-
-    if ($this->is_cancelled()) {
-      $this->clear_scheduled_event();
-      $this->delete_all();
-
-      return $this->maybe_wp_die();
-    }
-
-    if ($this->is_paused()) {
-      $this->clear_scheduled_event();
-      $this->paused();
-
-      return $this->maybe_wp_die();
-    }
-
-    if ($this->is_queue_empty()) {
-      return $this->maybe_wp_die();
-    }
-
-    $this->handle();
-
-    return $this->maybe_wp_die();;
-  }
-
-  public function make_request()
-  {
-    $url = add_query_arg( $this->get_query_args(), $this->get_query_url() );
-    $client = new Client();
-
-    try {
-      $client->request('POST', $url);
-    } catch (\Exception $e) {
-      error_log($e->getMessage());
-    }
-  }
-
   public function dispatch()
   {
     $this->schedule_event();
-  }
-
-  public function schedule_cron_healthcheck($schedules)
-  {
-    $interval = apply_filters($this->cron_interval_identifier, 5);
-
-    if (property_exists($this, 'cron_interval')) {
-      $interval = apply_filters($this->cron_interval_identifier, $this->cron_interval);
-    }
-
-    if (1 === $interval) {
-      $display = __('Every Minute');
-    } else {
-      $display = sprintf(__('Every %d Minutes'), $interval);
-    }
-
-    $schedules[$this->cron_interval_identifier] = [
-      'interval' => MINUTE_IN_SECONDS * $interval,
-      'display' => $display,
-    ];
-
-    return $schedules;
-  }
-
-  public function handle_cron_healthcheck()
-  {
-    if ($this->is_queue_empty()) {
-      return;
-    }
-
-    $this->make_request();
-    $this->remove_scheduled_event('maxwell_meta_importer_dispatch');
-  }
-
-  public function cancel_process()
-  {
-    $this->cancel();
-  }
-
-  protected function resumed()
-  {
-    do_action($this->identifier . '_resumed');
-  }
-
-  protected function get_query_args()
-  {
-    if (property_exists($this, 'query_args')) {
-      return $this->query_args;
-    }
-
-    $args = [
-      'action' => $this->identifier,
-      'nonce' => wp_create_nonce($this->identifier)
-    ];
-
-    return apply_filters($this->identifier . '_query_args', $args);
-  }
-
-  protected function get_query_url()
-  {
-    if (property_exists($this, 'query_url')) {
-      return $this->query_url;
-    }
-
-    $url = admin_url('admin-ajax.php');
-
-    return apply_filters($this->identifier . '_query_url', $url);
-  }
-
-  protected function maybe_wp_die($return = null)
-  {
-    if (apply_filters($this->identifier . '_wp_die', true)) {
-      wp_die();
-    }
-
-    return $return;
   }
 
   protected function task($item)
@@ -488,9 +293,7 @@ class Maxwell_Post_Import_Scheduler
 
   protected function complete()
   {
-    $this->delete_option($this->get_status_key());
     $this->remove_scheduled_event();
-    $this->completed();
   }
 
   protected function lock_process()
@@ -513,19 +316,9 @@ class Maxwell_Post_Import_Scheduler
     return substr($prepend . $unique, 0, $length);
   }
 
-  protected function get_status_key()
-  {
-    return $this->identifier . '_status';
-  }
-
   protected function is_queue_empty()
   {
     return empty($this->get_batch());
-  }
-
-  protected function is_process_running()
-  {
-    return $this->is_processing();
   }
 
   protected function get_batch()
@@ -560,12 +353,12 @@ class Maxwell_Post_Import_Scheduler
       }
 
       if (!empty($batch->data)) {
-        $this->update($batch->key, $batch->data);
+        $this->update_option($batch->key, $batch->data);
       }
     }
     error_log('Finished a batch');
     if (empty($batch->data)) {
-      $this->delete($batch->key);
+      $this->delete_option($batch->key);
     }
 
     $this->unlock_process();
@@ -573,51 +366,6 @@ class Maxwell_Post_Import_Scheduler
     if ($this->is_queue_empty()) {
       $this->complete();
     }
-  }
-
-  protected function memory_exceeded()
-  {
-    $memory_limit = $this->get_memory_limit() * 0.9;
-    $current_memory = memory_get_usage(true);
-    $return = false;
-
-    if ($current_memory >= $memory_limit) {
-      $return = true;
-    }
-
-    return apply_filters($this->identifier . '_memory_exceeded', $return);
-  }
-
-  protected function get_memory_limit()
-  {
-    if (function_exists('ini_get')) {
-      $memory_limit = ini_get('memory_limit');
-    } else {
-      $memory_limit = '128M';
-    }
-
-    if (!$memory_limit || -1 === intval($memory_limit)) {
-      $memory_limit = '32000M';
-    }
-
-    return wp_convert_hr_to_bytes($memory_limit);
-  }
-
-  protected function time_exceeded()
-  {
-    $finish = $this->start_time + apply_filters($this->identifier . '_default_time_limit', 20);
-    $return = false;
-
-    if (time() >= $finish) {
-      $return = true;
-    }
-
-    return apply_filters($this->identifier . '_time_exceeded', $return);
-  }
-
-  protected function completed()
-  {
-    do_action($this->identifier . '_completed');
   }
 
   protected function schedule_event()
@@ -638,15 +386,6 @@ class Maxwell_Post_Import_Scheduler
 
     as_unschedule_all_actions('maxwell_meta_importer_action');
     $this->clear_completed_actions();
-  }
-
-  protected function clear_scheduled_event()
-  {
-    $timestamp = wp_next_scheduled($this->cron_hook_identifier);
-
-    if ($timestamp) {
-      wp_unschedule_event($timestamp, $this->cron_hook_identifier);
-    }
   }
 
   private function migrate_schedule_data()

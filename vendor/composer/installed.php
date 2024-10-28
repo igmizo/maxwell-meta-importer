@@ -3,22 +3,13 @@
         'name' => 'igmizo/gmz-post-importer',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'a73c7eba9cece85b1dd89d3257ebe4ba7d17b392',
+        'reference' => 'e723c8351fdba87173f10740db7ed9fb635f7bdf',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
         'dev' => true,
     ),
     'versions' => array(
-        'deliciousbrains/wp-background-processing' => array(
-            'pretty_version' => '1.1.1',
-            'version' => '1.1.1.0',
-            'reference' => 'ebbed762c42e70e76573ffbd36e591378ba5f2ee',
-            'type' => 'library',
-            'install_path' => __DIR__ . '/../deliciousbrains/wp-background-processing',
-            'aliases' => array(),
-            'dev_requirement' => false,
-        ),
         'guzzlehttp/guzzle' => array(
             'pretty_version' => '7.8.0',
             'version' => '7.8.0.0',
@@ -49,7 +40,7 @@
         'igmizo/gmz-post-importer' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'a73c7eba9cece85b1dd89d3257ebe4ba7d17b392',
+            'reference' => 'e723c8351fdba87173f10740db7ed9fb635f7bdf',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
