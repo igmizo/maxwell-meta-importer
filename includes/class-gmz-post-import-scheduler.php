@@ -572,7 +572,7 @@ class Maxwell_Post_Import_Scheduler
 
     $table_name = $wpdb->prefix . 'actionscheduler_actions';
 
-    $wpdb->query("DELETE FROM $table_name WHERE hook = 'maxwell_meta_importer_action' AND (status = 'complete' OR status = 'failed')");
+    $wpdb->query("DELETE FROM $table_name WHERE hook = 'maxwell_meta_importer_action'");
   }
 }
 
