@@ -341,10 +341,6 @@ class Maxwell_Post_Import_Scheduler
   {
     session_write_close();
 
-    if ($this->is_processing()) {
-      return $this->maybe_wp_die();
-    }
-
     if ($this->is_cancelled()) {
       $this->clear_scheduled_event();
       $this->delete_all();
@@ -378,10 +374,6 @@ class Maxwell_Post_Import_Scheduler
 
   public function dispatch()
   {
-    if ($this->is_processing()) {
-      return false;
-    }
-
     $url = add_query_arg( $this->get_query_args(), $this->get_query_url() );
     $client = new Client();
 
@@ -414,10 +406,6 @@ class Maxwell_Post_Import_Scheduler
 
   public function handle_cron_healthcheck()
   {
-    if ($this->is_processing()) {
-      exit;
-    }
-
     if ($this->is_queue_empty()) {
       $this->clear_scheduled_event();
       exit;
@@ -557,6 +545,11 @@ class Maxwell_Post_Import_Scheduler
   }
 
   protected function handle() {
+    if ($this->is_processing()) {
+      error_log('Already processing');
+      return $this->maybe_wp_die();
+    }
+    error_log('Handling');
     $this->lock_process();
 
     $throttle_seconds = max(
