@@ -8,6 +8,7 @@
     ],
     "require": {
         "guzzlehttp/guzzle": "^7.0",
-        "deliciousbrains/wp-background-processing": "^1.1"
+        "deliciousbrains/wp-background-processing": "^1.1",
+        "woocommerce/action-scheduler": "^3.8"
     }
 }

@@ -296,7 +296,7 @@
 
     uploadInProgress = false;
 
-    updateProgress(response);
+    updateTables(response);
 	}
 
 	const updateProgress = function(data) {

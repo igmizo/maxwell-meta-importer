@@ -24,6 +24,7 @@ class Maxwell_Post_Import_Scheduler
     add_action('wp_ajax_nopriv_' . $this->identifier, [$this, 'maybe_handle']);
     add_action($this->cron_hook_identifier, [$this, 'handle_cron_healthcheck']);
     add_filter('cron_schedules', [$this, 'schedule_cron_healthcheck']);
+    add_action('maxwell_meta_importer_dispatch', [$this, 'handle_cron_healthcheck']);
   }
 
   public function data($data)
@@ -369,15 +370,22 @@ class Maxwell_Post_Import_Scheduler
     $url = add_query_arg( $this->get_query_args(), $this->get_query_url() );
     $client = new Client();
 
-    $client->request('POST', $url);
+    try {
+      $client->request('POST', $url);
+    } catch (\Exception $e) {
+      error_log($e->getMessage());
+    }
   }
 
   public function dispatch()
   {
-    $url = add_query_arg( $this->get_query_args(), $this->get_query_url() );
-    $client = new Client();
-
-    $this->schedule_event();
+    if ($this->has_scheduled_event()) {
+      error_log('Making request');
+      $this->make_request();
+    } else {
+      $this->update_option($this->identifier . '_scheduled_event', 'on');
+      $this->schedule_event();
+    }
 
     return true;
   }
@@ -407,11 +415,11 @@ class Maxwell_Post_Import_Scheduler
   public function handle_cron_healthcheck()
   {
     if ($this->is_queue_empty()) {
-      $this->clear_scheduled_event();
-      exit;
+      return;
     }
 
     $this->make_request();
+    $this->remove_scheduled_event('maxwell_meta_importer_dispatch');
   }
 
   public function cancel_process()
@@ -495,12 +503,7 @@ class Maxwell_Post_Import_Scheduler
 
   protected function lock_process()
   {
-    $this->start_time = time();
-
-    $lock_duration = ( property_exists( $this, 'queue_lock_time' ) ) ? $this->queue_lock_time : 60;
-    $lock_duration = apply_filters( $this->identifier . '_queue_lock_time', $lock_duration );
-
-    $this->update_option($this->identifier . '_process_lock', $lock_duration);
+    $this->update_option($this->identifier . '_process_lock', 'on');
   }
 
   protected function unlock_process()
@@ -649,9 +652,21 @@ class Maxwell_Post_Import_Scheduler
 
   protected function schedule_event()
   {
-    if (!wp_next_scheduled( $this->cron_hook_identifier)) {
-      wp_schedule_single_event(time() + 2, $this->cron_hook_identifier);
+    if (as_next_scheduled_action('maxwell_meta_importer_dispatch') === false) {
+      as_enqueue_async_action('maxwell_meta_importer_dispatch');
     }
+  }
+
+  protected function remove_scheduled_event()
+  {
+    $active_batch = $this->get_batch();
+
+    if (!empty($active_batch)) {
+      $this->delete_option($active_batch->key);
+    }
+
+    as_unschedule_all_actions('maxwell_meta_importer_dispatch');
+    $this->delete_option($this->identifier . '_scheduled_event');
   }
 
   protected function clear_scheduled_event()
@@ -819,6 +834,13 @@ class Maxwell_Post_Import_Scheduler
     $table_name = $wpdb->prefix . 'maxwell_meta_import_options';
 
     $wpdb->delete($table_name, ['name' => $key]);
+  }
+
+  private function has_scheduled_event()
+  {
+    $option = $this->get_option($this->identifier . '_scheduled_event');
+
+    return !is_null($option);
   }
 }
 
