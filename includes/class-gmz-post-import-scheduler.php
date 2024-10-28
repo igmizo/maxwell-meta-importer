@@ -19,6 +19,18 @@ class Maxwell_Post_Import_Scheduler
     $this->identifier = $this->prefix . '_' . $this->action;
 
     add_action('maxwell_meta_importer_action', [$this, 'handle']);
+    add_filter('action_scheduler_queue_runner_concurrent_batches', [$this, 'increase_action_scheduler_concurrent_batches']);
+    add_filter('action_scheduler_queue_runner_time_limit', [$this, 'increase_time_limit']);
+  }
+
+  public function increase_action_scheduler_concurrent_batches()
+  {
+    return 2;
+  }
+
+  public function increase_time_limit()
+  {
+    return 120;
   }
 
   public function schedule_file($file, $post_type, $taxonomy)
