@@ -346,7 +346,6 @@ class Maxwell_CSV_Importer
                 }
             }
             catch(\Exception $e) {
-                var_dump($e->getMessage());
                 $this->amazon_failed++;
                 $this->error_msg = $e->getMessage();
                 $this->amazon_errors[] = [
