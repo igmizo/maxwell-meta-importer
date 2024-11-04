@@ -41,7 +41,7 @@ class Maxwell_Post_Import_Scheduler
     $importer = new Maxwell_CSV_Importer($file, $post_type, $taxonomy);
     $rows = $importer->get_rows();
     $queue_key = $this->generate_key();
-    $task_item_count = ceil(count($rows) / $importer->get_batch_size());
+    $task_item_count = ceil(count($rows) / Maxwell_CSV_Importer::MAX_ROWS_PER_BATCH);
 
     for ($i = 0; $i < $task_item_count; $i++) {
       $this->push_to_queue(['key' => $queue_key, 'batch_index' => $i]);
@@ -238,7 +238,7 @@ class Maxwell_Post_Import_Scheduler
     global $wpdb;
 
     $table_name = $wpdb->prefix . 'maxwell_meta_import_options';
-    $name = $wpdb->esc_like( $this->identifier . '_batch_' ) . '%';
+    $name = $wpdb->esc_like($this->identifier . '_batch_') . '%';
     $sql = "SELECT * FROM $table_name WHERE name LIKE %s ORDER BY id ASC";
     $arguments = [$name];
 
@@ -275,13 +275,82 @@ class Maxwell_Post_Import_Scheduler
     $this->schedule_event();
   }
 
+  public function dispatch_remote($key)
+  {
+    wp_remote_post(SCHEDULER_API_URL, [
+      'headers' => [
+        'Content-Type' => 'application/json'
+      ],
+      'body' => json_encode(['key' => $key])
+    ]);
+  }
+
+  public function process_scheduled_call()
+  {
+    do_action('maxwell_meta_importer_action');
+
+    if ($this->is_queue_empty()) {
+      return ['finished' => true];
+    }
+
+    return ['finished' => false];
+  }
+
+  public function handle()
+  {
+    $items_to_be_removed = [];
+
+    if ($this->is_processing()) {
+      error_log('Already processing');
+      return;
+    }
+    error_log('Handling');
+    $this->lock_process();
+
+    $batch = $this->get_batch();
+
+    for ($i = 0; $i < Maxwell_CSV_Importer::MAX_ROWS_PER_BATCH && $i < count($batch->data); $i++) {
+      $value = $batch->data[$i];
+      error_log("Index $i");
+      error_log(print_r($value, true));
+      $task_result = $this->task($value);
+
+      if ($task_result) {
+        $items_to_be_removed[] = $i;
+      }
+    }
+
+    foreach ($items_to_be_removed as $index) {
+      unset($batch->data[$index]);
+    }
+
+    if (empty($batch->data)) {
+      $this->delete_option($batch->key);
+    } else {
+      $this->update_option($batch->key, $batch->data);
+    }
+
+    $this->unlock_process();
+
+    if ($this->is_queue_empty()) {
+      $this->complete();
+    }
+  }
+
   protected function task($item)
   {
     $schedule = $this->get_schedule_by_name($item['key']);
 
     if ($schedule) {
       $importer = new Maxwell_CSV_Importer($schedule->details['file'], $schedule->details['post_type'], $schedule->details['taxonomy']);
-      $import_result = $importer->process_batch($item['batch_index']);
+
+      try {
+        $import_result = $importer->process_batch($item['batch_index']);
+      } catch (\Exception $e) {
+        error_log($e->getMessage());
+
+        return false;
+      }
 
       if (!in_array($item['batch_index'], $schedule->details['processed_batches'])) {
         foreach ($import_result as $key => $value) {
@@ -300,12 +369,11 @@ class Maxwell_Post_Import_Scheduler
       $this->update_schedule($schedule);
     }
 
-    return false;
+    return true;
   }
 
   protected function complete()
   {
-    error_log('complete');
     $this->remove_scheduled_event();
   }
 
@@ -345,46 +413,9 @@ class Maxwell_Post_Import_Scheduler
     );
   }
 
-  public function handle() {
-    if ($this->is_processing()) {
-      error_log('Already processing');
-      return;
-    }
-    error_log('Handling');
-    $this->lock_process();
-
-    $batch = $this->get_batch();
-
-    foreach ($batch->data as $key => $value) {
-      error_log('Calling task with '.print_r($value, true));
-      $task = $this->task($value);
-
-      if (false !== $task) {
-        $batch->data[$key] = $task;
-      } else {
-        unset($batch->data[$key]);
-      }
-
-      if (!empty($batch->data)) {
-        $this->update_option($batch->key, $batch->data);
-      }
-    }
-    error_log('Finished a batch');
-    if (empty($batch->data)) {
-      $this->delete_option($batch->key);
-    }
-
-    $this->unlock_process();
-
-    if ($this->is_queue_empty()) {
-      $this->complete();
-    }
-  }
-
   protected function schedule_event()
   {
     if (as_next_scheduled_action('maxwell_meta_importer_action') === false) {
-      error_log('Event does not exist');
       as_schedule_recurring_action(time(), MINUTE_IN_SECONDS, 'maxwell_meta_importer_action');
     }
   }
@@ -585,4 +616,10 @@ add_action('plugins_loaded', function () {
   add_action('wp_ajax_clean_queue_history', [$scheduler, 'clean_queue_history']);
   add_action('wp_ajax_cancel_file', [$scheduler, 'cancel_file']);
   add_action('wp_ajax_restart_file', [$scheduler, 'restart_file']);
+  add_action('rest_api_init', function () use($scheduler) {
+    register_rest_route( 'maxwell-meta-importer', '/schedule/run', array(
+      'methods' => 'POST',
+      'callback' => [$scheduler, 'process_scheduled_call']
+    ));
+  });
 });

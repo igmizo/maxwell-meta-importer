@@ -26,6 +26,8 @@ class Maxwell_CSV_Importer
 
     private $maxRows = 5;
 
+    const MAX_ROWS_PER_BATCH = 5;
+
     function __construct($file, $post_type, $taxonomy, $skip = 0)
     {
         $this->data = $this->readFile($file);
