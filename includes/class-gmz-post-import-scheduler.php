@@ -66,7 +66,7 @@ class Maxwell_Post_Import_Scheduler
     ];
 
     $wpdb->insert($table_name, ['name' => $queue_key, 'details' => maybe_serialize($schedule)]);
-    $this->save($queue_key)->dispatch();
+    $this->save($queue_key)->dispatch_remote($queue_key);
 
     return $this->format_response($this->get_schedules());
   }
