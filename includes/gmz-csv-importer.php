@@ -24,8 +24,6 @@ class Maxwell_CSV_Importer
     private $amazonAsins = [];
     private $amazon_errors = [];
 
-    private $maxRows = 5;
-
     const MAX_ROWS_PER_BATCH = 5;
 
     function __construct($file, $post_type, $taxonomy, $skip = 0)
@@ -46,7 +44,7 @@ class Maxwell_CSV_Importer
             if($row_number < $this->skip) {
                 continue;
             }
-            if ($row_number > $this->maxRows + $this->skip - 1) {
+            if ($row_number > self::MAX_ROWS_PER_BATCH + $this->skip - 1) {
                 break;
             }
             $current = $row_number;
@@ -79,14 +77,14 @@ class Maxwell_CSV_Importer
     public function process_batch($batch_index)
     {
         $total = count($this->data);
-        $skip = $this->maxRows * $batch_index;
+        $skip = self::MAX_ROWS_PER_BATCH * $batch_index;
         $results = ["batch_{$batch_index}" => ['successful_rows' => [], 'failed_rows' => []]];
 
         foreach ($this->data as $row_number => $row) {
             $data = [];
 
             if ($row_number < $skip) continue;
-            if ($row_number > $this->maxRows + $skip - 1) break;
+            if ($row_number > self::MAX_ROWS_PER_BATCH + $skip - 1) break;
 
             foreach ($row as $column_number => $value) {
                 $processor = $this->processors[$column_number];
@@ -132,7 +130,7 @@ class Maxwell_CSV_Importer
 
     public function get_batch_size()
     {
-        return $this->maxRows;
+        return self::MAX_ROWS_PER_BATCH;
     }
 
     private function getPostIdByTitle($title): int
