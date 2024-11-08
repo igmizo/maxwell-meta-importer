@@ -617,7 +617,7 @@ add_action('plugins_loaded', function () {
   add_action('wp_ajax_cancel_file', [$scheduler, 'cancel_file']);
   add_action('wp_ajax_restart_file', [$scheduler, 'restart_file']);
   add_action('rest_api_init', function () use($scheduler) {
-    register_rest_route( 'maxwell-meta-importer', '/schedule/run', array(
+    register_rest_route('maxwell-meta-importer', '/schedule/run', array(
       'methods' => 'POST',
       'callback' => [$scheduler, 'process_scheduled_call']
     ));
