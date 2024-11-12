@@ -66,7 +66,7 @@ class Maxwell_Post_Import_Scheduler
     ];
 
     $wpdb->insert($table_name, ['name' => $queue_key, 'details' => maybe_serialize($schedule)]);
-    $this->save($queue_key)->dispatch_remote($queue_key);
+    $this->dispatch_remote($queue_key);
 
     return $this->format_response($this->get_schedules());
   }
@@ -281,19 +281,27 @@ class Maxwell_Post_Import_Scheduler
       'headers' => [
         'Content-Type' => 'application/json'
       ],
-      'body' => json_encode(['key' => $key])
+      'body' => json_encode(['key' => $key, 'data' => $this->data])
     ]);
   }
 
-  public function process_scheduled_call()
+  public function process_scheduled_call($request)
   {
-    $this->handle();
+    $finished = true;
+    $items = [];
+    $task = $request->get_json_params();
+    error_log(print_r($task, true));
+    $schedule = $this->get_schedule_by_name($task['key']);
 
-    if ($this->is_queue_empty()) {
-      return ['finished' => true];
+    if ($schedule) {
+      $items = $task['data'];
+
+      $this->process_batch_item($items);
+
+      $finished = empty($items);
     }
 
-    return ['finished' => false];
+    return ['finished' => $finished, 'items' => $items];
   }
 
   public function handle()
@@ -574,21 +582,14 @@ class Maxwell_Post_Import_Scheduler
     $wpdb->query("DELETE FROM $table_name WHERE hook = 'maxwell_meta_importer_action'");
   }
 
-  private function process_batch_item($item_number = 1) {
+  private function process_batch_item(&$items, $item_number = 1) {
     if ($item_number <= Maxwell_CSV_Importer::MAX_ROWS_PER_BATCH) {
-      $batch = $this->get_batch();
-      $item = array_shift($batch->data);
+      $item = array_shift($items);
 
-      error_log("Processing batch {$batch->key} item $item_number");
-
-      if (is_null($item)) {
-        $this->delete_option($batch->key);
-      } else {
+      if (!is_null($item)) {
         $this->task($item);
-        $this->update_option($batch->key, $batch->data);
+        $this->process_batch_item($items, $item_number + 1);
       }
-
-      $this->process_batch_item($item_number + 1);
     }
   }
 }
