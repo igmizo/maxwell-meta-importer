@@ -581,13 +581,10 @@ class Maxwell_Post_Import_Scheduler
 
       error_log("Processing batch {$batch->key} item $item_number");
 
-      if (!is_null($item)) {
-        $result = $this->task($item);
-      }
-
-      if (empty($batch->data)) {
+      if (is_null($item)) {
         $this->delete_option($batch->key);
       } else {
+        $this->task($item);
         $this->update_option($batch->key, $batch->data);
       }
 
