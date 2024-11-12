@@ -287,7 +287,7 @@ class Maxwell_Post_Import_Scheduler
 
   public function process_scheduled_call()
   {
-    do_action('maxwell_meta_importer_action');
+    $this->handle();
 
     if ($this->is_queue_empty()) {
       return ['finished' => true];
@@ -298,39 +298,7 @@ class Maxwell_Post_Import_Scheduler
 
   public function handle()
   {
-    $items_to_be_removed = [];
-
-    if ($this->is_processing()) {
-      error_log('Already processing');
-      return;
-    }
-    error_log('Handling');
-    $this->lock_process();
-
-    $batch = $this->get_batch();
-
-    for ($i = 0; $i < Maxwell_CSV_Importer::MAX_ROWS_PER_BATCH && $i < count($batch->data); $i++) {
-      $value = $batch->data[$i];
-      error_log("Index $i");
-      error_log(print_r($value, true));
-      $task_result = $this->task($value);
-
-      if ($task_result) {
-        $items_to_be_removed[] = $i;
-      }
-    }
-
-    foreach ($items_to_be_removed as $index) {
-      unset($batch->data[$index]);
-    }
-
-    if (empty($batch->data)) {
-      $this->delete_option($batch->key);
-    } else {
-      $this->update_option($batch->key, $batch->data);
-    }
-
-    $this->unlock_process();
+    $this->process_batch_item();
 
     if ($this->is_queue_empty()) {
       $this->complete();
@@ -604,6 +572,27 @@ class Maxwell_Post_Import_Scheduler
     $table_name = $wpdb->prefix . 'actionscheduler_actions';
 
     $wpdb->query("DELETE FROM $table_name WHERE hook = 'maxwell_meta_importer_action'");
+  }
+
+  private function process_batch_item($item_number = 1) {
+    if ($item_number <= Maxwell_CSV_Importer::MAX_ROWS_PER_BATCH) {
+      $batch = $this->get_batch();
+      $item = array_shift($batch->data);
+
+      error_log("Processing batch {$batch->key} item $item_number");
+
+      if (!is_null($item)) {
+        $result = $this->task($item);
+      }
+
+      if (empty($batch->data)) {
+        $this->delete_option($batch->key);
+      } else {
+        $this->update_option($batch->key, $batch->data);
+      }
+
+      $this->process_batch_item($item_number + 1);
+    }
   }
 }
 
