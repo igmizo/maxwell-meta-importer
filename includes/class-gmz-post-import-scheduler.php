@@ -325,7 +325,7 @@ class Maxwell_Post_Import_Scheduler
     $authorized_user = wp_authenticate_application_password($user, $username, $password);
     $updated_post = $request->get_json_params();
 
-    error_log(print_r($update_post, true));
+    error_log(print_r($updated_post, true));
 
     return true;
   }
