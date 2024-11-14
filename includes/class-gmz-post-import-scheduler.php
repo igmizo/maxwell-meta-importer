@@ -21,6 +21,8 @@ class Maxwell_Post_Import_Scheduler
     add_action('maxwell_meta_importer_action', [$this, 'handle']);
     add_filter('action_scheduler_queue_runner_concurrent_batches', [$this, 'increase_action_scheduler_concurrent_batches']);
     add_filter('action_scheduler_queue_runner_time_limit', [$this, 'increase_time_limit']);
+
+    $this->register_api_routes();
   }
 
   public function increase_action_scheduler_concurrent_batches()
@@ -313,6 +315,21 @@ class Maxwell_Post_Import_Scheduler
     }
   }
 
+  public function update_post($request)
+  {
+    $authorization_header = $request->get_header('Authorization');
+    [$type, $encoded_value] = explode(' ', $authorization_header);
+    $decoded_value = base64_decode($encoded_value);
+    [$username, $password] = explode(':', $decoded_value);
+    $user = get_user_by('login', SCHEDULER_API_USERNAME);
+    $authorized_user = wp_authenticate_application_password($user, $username, $password);
+    $updated_post = $request->get_json_params();
+
+    error_log(print_r($update_post, true));
+
+    return true;
+  }
+
   protected function task($item)
   {
     $schedule = $this->get_schedule_by_name($item['key']);
@@ -592,6 +609,21 @@ class Maxwell_Post_Import_Scheduler
       }
     }
   }
+
+  private function register_api_routes()
+  {
+    add_action('rest_api_init', function () {
+      register_rest_route('maxwell-meta-importer', '/schedule/run', array(
+        'methods' => 'POST',
+        'callback' => [$this, 'process_scheduled_call']
+      ));
+
+      register_rest_route('maxwell-meta-importer', '/posts', array(
+        'methods' => 'PATCH',
+        'callback' => [$this, 'update_post']
+      ));
+    });
+  }
 }
 
 add_action('plugins_loaded', function () {
@@ -603,10 +635,4 @@ add_action('plugins_loaded', function () {
   add_action('wp_ajax_clean_queue_history', [$scheduler, 'clean_queue_history']);
   add_action('wp_ajax_cancel_file', [$scheduler, 'cancel_file']);
   add_action('wp_ajax_restart_file', [$scheduler, 'restart_file']);
-  add_action('rest_api_init', function () use($scheduler) {
-    register_rest_route('maxwell-meta-importer', '/schedule/run', array(
-      'methods' => 'POST',
-      'callback' => [$scheduler, 'process_scheduled_call']
-    ));
-  });
 });
