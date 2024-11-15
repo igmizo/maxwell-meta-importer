@@ -21,8 +21,6 @@ class Maxwell_Post_Import_Scheduler
     add_action('maxwell_meta_importer_action', [$this, 'handle']);
     add_filter('action_scheduler_queue_runner_concurrent_batches', [$this, 'increase_action_scheduler_concurrent_batches']);
     add_filter('action_scheduler_queue_runner_time_limit', [$this, 'increase_time_limit']);
-
-    $this->register_api_routes();
   }
 
   public function increase_action_scheduler_concurrent_batches()
@@ -68,7 +66,7 @@ class Maxwell_Post_Import_Scheduler
     ];
 
     $wpdb->insert($table_name, ['name' => $queue_key, 'details' => maybe_serialize($schedule)]);
-    $this->dispatch_remote($queue_key);
+    $this->save($queue_key)->dispatch();
 
     return $this->format_response($this->get_schedules());
   }
@@ -277,57 +275,18 @@ class Maxwell_Post_Import_Scheduler
     $this->schedule_event();
   }
 
-  public function dispatch_remote($key)
-  {
-    wp_remote_post(SCHEDULER_API_URL, [
-      'headers' => [
-        'Content-Type' => 'application/json'
-      ],
-      'body' => json_encode(['key' => $key, 'data' => $this->data])
-    ]);
-  }
-
-  public function process_scheduled_call($request)
-  {
-    $finished = true;
-    $items = [];
-    $task = $request->get_json_params();
-    error_log(print_r($task, true));
-    $schedule = $this->get_schedule_by_name($task['key']);
-
-    if ($schedule) {
-      $items = $task['data'];
-
-      $this->process_batch_item($items);
-
-      $finished = empty($items);
-    }
-
-    return ['finished' => $finished, 'items' => $items];
-  }
-
   public function handle()
   {
-    $this->process_batch_item();
+    if (!$this->is_processing()) {
+      $this->lock_process();
+      $this->process_batch_items();
 
-    if ($this->is_queue_empty()) {
-      $this->complete();
+      if ($this->is_queue_empty()) {
+        $this->complete();
+      }
+
+      $this->unlock_process();
     }
-  }
-
-  public function update_post($request)
-  {
-    $authorization_header = $request->get_header('Authorization');
-    [$type, $encoded_value] = explode(' ', $authorization_header);
-    $decoded_value = base64_decode($encoded_value);
-    [$username, $password] = explode(':', $decoded_value);
-    $user = get_user_by('login', SCHEDULER_API_USERNAME);
-    $authorized_user = wp_authenticate_application_password($user, $username, $password);
-    $updated_post = $request->get_json_params();
-
-    error_log(print_r($updated_post, true));
-
-    return true;
   }
 
   protected function task($item)
@@ -378,8 +337,6 @@ class Maxwell_Post_Import_Scheduler
   protected function unlock_process()
   {
     $this->delete_option( $this->identifier . '_process_lock' );
-
-    return $this;
   }
 
   protected function generate_key($length = 64, $key = 'batch')
@@ -599,30 +556,29 @@ class Maxwell_Post_Import_Scheduler
     $wpdb->query("DELETE FROM $table_name WHERE hook = 'maxwell_meta_importer_action'");
   }
 
-  private function process_batch_item(&$items, $item_number = 1) {
-    if ($item_number <= Maxwell_CSV_Importer::MAX_ROWS_PER_BATCH) {
+  private function process_batch_items()
+  {
+    $batch = $this->get_batch();
+
+    if ($batch) {
+      $item_number = 1;
+      $items = $batch->data;
       $item = array_shift($items);
 
-      if (!is_null($item)) {
+      while ($item && $item_number <= Maxwell_CSV_Importer::MAX_ROWS_PER_BATCH) {
         $this->task($item);
-        $this->process_batch_item($items, $item_number + 1);
+
+        if (count($items) > 0) {
+          $batch->data = $items;
+          $this->update_option($batch->key, $batch->data);
+        } else {
+          $this->delete_option($batch->key);
+        }
+
+        $item = array_shift($items);
+        $item_number++;
       }
     }
-  }
-
-  private function register_api_routes()
-  {
-    add_action('rest_api_init', function () {
-      register_rest_route('maxwell-meta-importer', '/schedule/run', array(
-        'methods' => 'POST',
-        'callback' => [$this, 'process_scheduled_call']
-      ));
-
-      register_rest_route('maxwell-meta-importer', '/posts', array(
-        'methods' => 'PATCH',
-        'callback' => [$this, 'update_post']
-      ));
-    });
   }
 }
 
